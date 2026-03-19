@@ -1,0 +1,32 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Resume {
+  id        String   @id @default(uuid())
+  content   String
+  updatedAt DateTime @updatedAt
+}
+
+model CoverLetter {
+  id        String   @id @default(uuid())
+  content   String
+  updatedAt DateTime @updatedAt
+}
+
+model Job {
+  id             String    @id @default(uuid())
+  title          String
+  company        String
+  description    String
+  url            String?
+  source         String    // manual | rss | remoteok | linkedin
+  score          Float?
+  scoreReasoning String?
+  createdAt      DateTime  @default(now())
+}

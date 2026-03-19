@@ -1,0 +1,19 @@
+name: Fetch Jobs
+
+on:
+  schedule:
+    # Run daily at 9am UTC
+    - cron: "0 9 * * *"
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger job fetch
+        run: |
+          if [ -n "${{ secrets.JOB_HUNTER_API_URL }}" ]; then
+            curl -X POST "${{ secrets.JOB_HUNTER_API_URL }}/api/jobs/fetch" -H "Content-Type: application/json" -f || true
+          else
+            echo "Set JOB_HUNTER_API_URL secret to your deployed API URL for daily fetches"
+          fi
