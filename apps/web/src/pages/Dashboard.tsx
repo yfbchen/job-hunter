@@ -20,6 +20,7 @@ export function Dashboard({ onSelectJob }: DashboardProps) {
   const [source, setSource] = useState<"" | "manual" | "rss" | "remoteok" | "linkedin" | "stub">("");
   const [days, setDays] = useState<number | "">(30);
   const [unscoredOnly, setUnscoredOnly] = useState(false);
+  const [limit, setLimit] = useState<number | "">(50);
   const [notice, setNotice] = useState<string | null>(null);
   const [readiness, setReadiness] = useState<ReadinessStatus | null>(null);
 
@@ -27,10 +28,11 @@ export function Dashboard({ onSelectJob }: DashboardProps) {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (minScore !== "") params.set("minScore", String(minScore));
+      if (minScore !== "" && !unscoredOnly) params.set("minScore", String(minScore));
       if (source !== "") params.set("source", source);
       if (days !== "") params.set("days", String(days));
       if (unscoredOnly) params.set("unscored", "true");
+      if (limit !== "") params.set("limit", String(limit));
       const query = params.toString();
       const url = query ? `${API}/jobs?${query}` : `${API}/jobs`;
       const res = await fetch(url);
@@ -56,7 +58,7 @@ export function Dashboard({ onSelectJob }: DashboardProps) {
   useEffect(() => {
     loadJobs();
     loadReadiness();
-  }, [minScore, source, days, unscoredOnly]);
+  }, [minScore, source, days, unscoredOnly, limit]);
 
   const handleFetch = async () => {
     setFetching(true);
@@ -205,7 +207,8 @@ export function Dashboard({ onSelectJob }: DashboardProps) {
             max={100}
             value={minScore}
             onChange={(e) => setMinScore(e.target.value === "" ? "" : Number(e.target.value))}
-            className="w-16 px-2 py-1 rounded bg-zinc-800 border border-zinc-700 text-zinc-200 text-sm"
+            disabled={unscoredOnly}
+            className="w-16 px-2 py-1 rounded bg-zinc-800 border border-zinc-700 text-zinc-200 text-sm disabled:opacity-50"
           />
           <label className="text-sm text-zinc-400">Source:</label>
           <select
@@ -240,6 +243,18 @@ export function Dashboard({ onSelectJob }: DashboardProps) {
             />
             Unscored only
           </label>
+          <label className="text-sm text-zinc-400">Top:</label>
+          <select
+            value={limit}
+            onChange={(e) => setLimit(e.target.value === "" ? "" : Number(e.target.value))}
+            className="px-2 py-1 rounded bg-zinc-800 border border-zinc-700 text-zinc-200 text-sm"
+          >
+            <option value={25}>25</option>
+            <option value={50}>50</option>
+            <option value={100}>100</option>
+            <option value={200}>200</option>
+            <option value="">All</option>
+          </select>
           <button
             onClick={handleFetch}
             disabled={fetching}

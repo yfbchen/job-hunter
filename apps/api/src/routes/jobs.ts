@@ -13,12 +13,19 @@ router.get("/", async (req, res) => {
   const source = typeof req.query.source === "string" ? req.query.source.trim().toLowerCase() : undefined;
   const days = req.query.days ? Number(req.query.days) : undefined;
   const unscoredOnly = req.query.unscored === "true";
+  const limit = req.query.limit ? Number(req.query.limit) : undefined;
 
   if (minScore != null && Number.isNaN(minScore)) {
     return res.status(400).json({ error: "minScore must be numeric" });
   }
+  if (unscoredOnly && minScore != null) {
+    return res.status(400).json({ error: "minScore cannot be combined with unscored=true" });
+  }
   if (days != null && (Number.isNaN(days) || days < 1)) {
     return res.status(400).json({ error: "days must be a positive number" });
+  }
+  if (limit != null && (Number.isNaN(limit) || limit < 1 || limit > 500)) {
+    return res.status(400).json({ error: "limit must be between 1 and 500" });
   }
 
   const allowedSources = new Set(["manual", "rss", "remoteok", "linkedin", "stub"]);
@@ -31,10 +38,11 @@ router.get("/", async (req, res) => {
     where: {
       ...(source ? { source } : {}),
       ...(createdAfter ? { createdAt: { gte: createdAfter } } : {}),
-      ...(minScore != null ? { score: { gte: minScore } } : {}),
+      ...(!unscoredOnly && minScore != null ? { score: { gte: minScore } } : {}),
       ...(unscoredOnly ? { score: null } : {}),
     },
     orderBy: [{ score: "desc" }, { createdAt: "desc" }],
+    ...(limit != null ? { take: limit } : {}),
   });
 
   res.json(jobs);
