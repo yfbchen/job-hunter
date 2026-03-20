@@ -12,6 +12,7 @@ export function Dashboard({ onSelectJob }: DashboardProps) {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetching, setFetching] = useState(false);
+  const [bulkScoring, setBulkScoring] = useState(false);
   const [linkedinEnabled] = useState(false);
   const [pasteMode, setPasteMode] = useState(false);
   const [pasteText, setPasteText] = useState("");
@@ -91,6 +92,25 @@ export function Dashboard({ onSelectJob }: DashboardProps) {
     }
   };
 
+  const handleScoreUnscored = async () => {
+    setBulkScoring(true);
+    try {
+      const res = await fetch(`${API}/jobs/score-unscored`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ limit: 20 }),
+      });
+      const payload = (await res.json()) as { message?: string; error?: string };
+      setNotice(payload.message ?? payload.error ?? "Bulk scoring completed.");
+      await loadJobs();
+    } catch (e) {
+      console.error(e);
+      setNotice("Failed to bulk score jobs.");
+    } finally {
+      setBulkScoring(false);
+    }
+  };
+
   const handlePaste = async () => {
     if (!pasteText.trim()) return;
     try {
@@ -158,6 +178,13 @@ export function Dashboard({ onSelectJob }: DashboardProps) {
             className="px-3 py-1.5 rounded-md bg-zinc-700 hover:bg-zinc-600 text-zinc-200 text-sm font-medium disabled:opacity-50"
           >
             {fetching ? "Fetching…" : "Fetch jobs"}
+          </button>
+          <button
+            onClick={handleScoreUnscored}
+            disabled={bulkScoring}
+            className="px-3 py-1.5 rounded-md bg-zinc-700 hover:bg-zinc-600 text-zinc-200 text-sm font-medium disabled:opacity-50"
+          >
+            {bulkScoring ? "Scoring…" : "Score unscored"}
           </button>
           <button
             onClick={handleLinkedInMiniScrape}

@@ -82,6 +82,51 @@ router.post("/:id/score", async (req, res) => {
   res.json(updated);
 });
 
+router.post("/score-unscored", async (req, res) => {
+  const rawLimit = req.body?.limit;
+  const limit = rawLimit == null ? 10 : Number(rawLimit);
+  if (Number.isNaN(limit) || limit < 1 || limit > 100) {
+    return res.status(400).json({ error: "limit must be a number between 1 and 100" });
+  }
+
+  const resume = await prisma.resume.findFirst({ orderBy: { updatedAt: "desc" } });
+  if (!resume) return res.status(400).json({ error: "Upload a resume first" });
+
+  const jobs = await prisma.job.findMany({
+    where: { score: null },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+  });
+
+  let scored = 0;
+  const errors: string[] = [];
+  for (const job of jobs) {
+    try {
+      const { score, reasoning } = await scoreJob(resume.content, {
+        title: job.title,
+        company: job.company,
+        description: job.description,
+      });
+      await prisma.job.update({
+        where: { id: job.id },
+        data: { score, scoreReasoning: reasoning },
+      });
+      scored += 1;
+    } catch (e) {
+      console.error(`Failed to score job ${job.id}:`, e);
+      errors.push(job.id);
+    }
+  }
+
+  return res.json({
+    considered: jobs.length,
+    scored,
+    failed: errors.length,
+    failedIds: errors,
+    message: `Scored ${scored}/${jobs.length} unscored jobs`,
+  });
+});
+
 router.post("/:id/tailor", async (req, res) => {
   const job = await prisma.job.findUnique({ where: { id: req.params.id } });
   if (!job) return res.status(404).json({ error: "Job not found" });
@@ -157,6 +202,10 @@ router.post("/fetch", async (req, res) => {
 });
 
 router.post("/fetch/stubs", async (_req, res) => {
+  if (process.env.NODE_ENV === "production") {
+    return res.status(403).json({ error: "Stub fetch is disabled in production." });
+  }
+
   const added: string[] = [];
   const seen = new Set<string>();
 
