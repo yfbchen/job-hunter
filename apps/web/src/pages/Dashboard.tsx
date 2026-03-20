@@ -11,11 +11,13 @@ export function Dashboard({ onSelectJob }: DashboardProps) {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetching, setFetching] = useState(false);
+  const [linkedinEnabled] = useState(false);
   const [pasteMode, setPasteMode] = useState(false);
   const [pasteText, setPasteText] = useState("");
   const [minScore, setMinScore] = useState<number | "">("");
   const [source, setSource] = useState<"" | "manual" | "rss" | "remoteok" | "linkedin">("");
   const [days, setDays] = useState<number | "">(30);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const loadJobs = async () => {
     setLoading(true);
@@ -43,12 +45,33 @@ export function Dashboard({ onSelectJob }: DashboardProps) {
   const handleFetch = async () => {
     setFetching(true);
     try {
-      await fetch(`${API}/jobs/fetch`, { method: "POST" });
+      const res = await fetch(`${API}/jobs/fetch`, { method: "POST" });
+      const payload = (await res.json()) as { message?: string };
+      if (payload.message) {
+        setNotice(payload.message);
+      }
       await loadJobs();
     } catch (e) {
       console.error(e);
+      setNotice("Failed to fetch jobs.");
     } finally {
       setFetching(false);
+    }
+  };
+
+  const handleLinkedInMiniScrape = async () => {
+    if (!linkedinEnabled) {
+      setNotice("LinkedIn mini-scrape is post-MVP and currently disabled.");
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API}/jobs/fetch/linkedin-mini`, { method: "POST" });
+      const payload = (await res.json()) as { message?: string; error?: string };
+      setNotice(payload.message ?? payload.error ?? "LinkedIn mini-scrape triggered.");
+    } catch (e) {
+      console.error(e);
+      setNotice("Failed to trigger LinkedIn mini-scrape.");
     }
   };
 
@@ -120,6 +143,14 @@ export function Dashboard({ onSelectJob }: DashboardProps) {
             {fetching ? "Fetching…" : "Fetch jobs"}
           </button>
           <button
+            onClick={handleLinkedInMiniScrape}
+            disabled={!linkedinEnabled}
+            title="Post-MVP placeholder"
+            className="px-3 py-1.5 rounded-md bg-zinc-800 border border-zinc-700 text-zinc-400 text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            LinkedIn Scrape (Not Available)
+          </button>
+          <button
             onClick={() => setPasteMode(!pasteMode)}
             className="px-3 py-1.5 rounded-md bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium"
           >
@@ -127,6 +158,12 @@ export function Dashboard({ onSelectJob }: DashboardProps) {
           </button>
         </div>
       </div>
+
+      {notice && (
+        <div className="px-3 py-2 rounded-lg border border-zinc-700 bg-zinc-800/70 text-sm text-zinc-300">
+          {notice}
+        </div>
+      )}
 
       {pasteMode && (
         <div className="p-4 rounded-xl bg-zinc-800/80 border border-zinc-700">

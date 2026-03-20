@@ -156,6 +156,13 @@ router.post("/fetch", async (req, res) => {
   res.json({ added: added.length, message: `Added ${added.length} new jobs` });
 });
 
+router.post("/fetch/linkedin-mini", async (_req, res) => {
+  res.status(501).json({
+    error:
+      "LinkedIn mini-scrape is a post-MVP feature and is intentionally disabled for now.",
+  });
+});
+
 router.delete("/:id", async (req, res) => {
   const existing = await prisma.job.findUnique({ where: { id: req.params.id } });
   if (!existing) return res.status(404).json({ error: "Job not found" });
