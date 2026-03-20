@@ -12,6 +12,7 @@ router.get("/", async (req, res) => {
   const minScore = req.query.minScore ? Number(req.query.minScore) : undefined;
   const source = typeof req.query.source === "string" ? req.query.source.trim().toLowerCase() : undefined;
   const days = req.query.days ? Number(req.query.days) : undefined;
+  const unscoredOnly = req.query.unscored === "true";
 
   if (minScore != null && Number.isNaN(minScore)) {
     return res.status(400).json({ error: "minScore must be numeric" });
@@ -31,6 +32,7 @@ router.get("/", async (req, res) => {
       ...(source ? { source } : {}),
       ...(createdAfter ? { createdAt: { gte: createdAfter } } : {}),
       ...(minScore != null ? { score: { gte: minScore } } : {}),
+      ...(unscoredOnly ? { score: null } : {}),
     },
     orderBy: [{ score: "desc" }, { createdAt: "desc" }],
   });

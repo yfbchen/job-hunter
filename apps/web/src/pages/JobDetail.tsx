@@ -13,6 +13,7 @@ export function JobDetail({ jobId, onBack }: JobDetailProps) {
   const [loading, setLoading] = useState(true);
   const [scoring, setScoring] = useState(false);
   const [tailoring, setTailoring] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [tailored, setTailored] = useState<TailoredArtifacts | null>(null);
   const [activeTab, setActiveTab] = useState<"description" | "tailored">("description");
   const [notice, setNotice] = useState<string | null>(null);
@@ -87,6 +88,27 @@ export function JobDetail({ jobId, onBack }: JobDetailProps) {
     }
   };
 
+  const handleDelete = async () => {
+    if (!job) return;
+    const confirmed = window.confirm(`Delete "${job.title}" at ${job.company}?`);
+    if (!confirmed) return;
+
+    setDeleting(true);
+    try {
+      const res = await fetch(`${API}/jobs/${job.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        setNotice("Failed to delete job.");
+        return;
+      }
+      onBack();
+    } catch (e) {
+      console.error(e);
+      setNotice("Failed to delete job.");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   if (loading || !job) {
     return (
       <div className="py-12 text-center text-zinc-500">Loading…</div>
@@ -144,6 +166,13 @@ export function JobDetail({ jobId, onBack }: JobDetailProps) {
             className="px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium disabled:opacity-50"
           >
             {tailoring ? "Tailoring…" : "Tailor"}
+          </button>
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            className="px-3 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 hover:border-zinc-500 text-zinc-300 text-sm font-medium disabled:opacity-50"
+          >
+            {deleting ? "Deleting…" : "Delete"}
           </button>
         </div>
       </div>

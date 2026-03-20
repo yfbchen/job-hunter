@@ -19,6 +19,7 @@ export function Dashboard({ onSelectJob }: DashboardProps) {
   const [minScore, setMinScore] = useState<number | "">("");
   const [source, setSource] = useState<"" | "manual" | "rss" | "remoteok" | "linkedin" | "stub">("");
   const [days, setDays] = useState<number | "">(30);
+  const [unscoredOnly, setUnscoredOnly] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [readiness, setReadiness] = useState<ReadinessStatus | null>(null);
 
@@ -29,6 +30,7 @@ export function Dashboard({ onSelectJob }: DashboardProps) {
       if (minScore !== "") params.set("minScore", String(minScore));
       if (source !== "") params.set("source", source);
       if (days !== "") params.set("days", String(days));
+      if (unscoredOnly) params.set("unscored", "true");
       const query = params.toString();
       const url = query ? `${API}/jobs?${query}` : `${API}/jobs`;
       const res = await fetch(url);
@@ -54,7 +56,7 @@ export function Dashboard({ onSelectJob }: DashboardProps) {
   useEffect(() => {
     loadJobs();
     loadReadiness();
-  }, [minScore, source, days]);
+  }, [minScore, source, days, unscoredOnly]);
 
   const handleFetch = async () => {
     setFetching(true);
@@ -229,6 +231,15 @@ export function Dashboard({ onSelectJob }: DashboardProps) {
             <option value={30}>30d</option>
             <option value={90}>90d</option>
           </select>
+          <label className="inline-flex items-center gap-1.5 text-sm text-zinc-400">
+            <input
+              type="checkbox"
+              checked={unscoredOnly}
+              onChange={(e) => setUnscoredOnly(e.target.checked)}
+              className="accent-violet-500"
+            />
+            Unscored only
+          </label>
           <button
             onClick={handleFetch}
             disabled={fetching}
