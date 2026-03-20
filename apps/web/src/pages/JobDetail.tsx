@@ -15,6 +15,8 @@ export function JobDetail({ jobId, onBack }: JobDetailProps) {
   const [tailoring, setTailoring] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [tailored, setTailored] = useState<TailoredArtifacts | null>(null);
+  const [resumeBulletsEdit, setResumeBulletsEdit] = useState("");
+  const [coverLetterEdit, setCoverLetterEdit] = useState("");
   const [activeTab, setActiveTab] = useState<"description" | "tailored">("description");
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -68,6 +70,8 @@ export function JobDetail({ jobId, onBack }: JobDetailProps) {
         return;
       }
       setTailored(data);
+      setResumeBulletsEdit(data.resumeBullets ?? "");
+      setCoverLetterEdit(data.coverLetter ?? "");
       setActiveTab("tailored");
       setNotice("Tailored artifacts generated.");
     } catch (e) {
@@ -229,32 +233,36 @@ export function JobDetail({ jobId, onBack }: JobDetailProps) {
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="text-sm font-medium text-zinc-400">Resume bullets</h4>
                   <button
-                    onClick={() => void copyToClipboard(tailored.resumeBullets)}
+                    onClick={() => void copyToClipboard(resumeBulletsEdit)}
                     className="text-xs text-violet-400 hover:text-violet-300"
                   >
                     Copy
                   </button>
                 </div>
                 <div className="p-4 rounded-xl bg-zinc-800/60 border border-zinc-700">
-                  <pre className="whitespace-pre-wrap text-zinc-300 text-sm font-sans">
-                    {tailored.resumeBullets}
-                  </pre>
+                  <textarea
+                    value={resumeBulletsEdit}
+                    onChange={(e) => setResumeBulletsEdit(e.target.value)}
+                    className="w-full min-h-32 px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-600 text-zinc-200 text-sm resize-y"
+                  />
                 </div>
               </div>
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="text-sm font-medium text-zinc-400">Cover letter</h4>
                   <button
-                    onClick={() => void copyToClipboard(tailored.coverLetter)}
+                    onClick={() => void copyToClipboard(coverLetterEdit)}
                     className="text-xs text-violet-400 hover:text-violet-300"
                   >
                     Copy
                   </button>
                 </div>
                 <div className="p-4 rounded-xl bg-zinc-800/60 border border-zinc-700">
-                  <pre className="whitespace-pre-wrap text-zinc-300 text-sm font-sans">
-                    {tailored.coverLetter}
-                  </pre>
+                  <textarea
+                    value={coverLetterEdit}
+                    onChange={(e) => setCoverLetterEdit(e.target.value)}
+                    className="w-full min-h-56 px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-600 text-zinc-200 text-sm resize-y"
+                  />
                 </div>
               </div>
             </>

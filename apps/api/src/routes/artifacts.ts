@@ -12,17 +12,24 @@ router.get("/resume", async (_, res) => {
 });
 
 router.post("/resume", upload.single("file"), async (req, res) => {
-  let content = "";
-  if (req.file) {
-    content = await extractResumeContent(req.file);
-  } else if (typeof req.body?.content === "string") {
-    content = req.body.content;
+  try {
+    let content = "";
+    if (req.file) {
+      content = await extractResumeContent(req.file);
+    } else if (typeof req.body?.content === "string") {
+      content = req.body.content;
+    }
+    if (!content.trim()) {
+      return res.status(400).json({ error: "Resume content is required" });
+    }
+    const resume = await prisma.resume.create({ data: { content } });
+    res.json(resume);
+  } catch (err) {
+    const errorObj = (err ?? {}) as { status?: number; message?: string };
+    const status = Number(errorObj.status ?? 500);
+    const message = errorObj.message ?? "Failed to process resume upload";
+    return res.status(status).json({ error: message });
   }
-  if (!content.trim()) {
-    return res.status(400).json({ error: "Resume content is required" });
-  }
-  const resume = await prisma.resume.create({ data: { content } });
-  res.json(resume);
 });
 
 router.put("/resume/:id", async (req, res) => {
