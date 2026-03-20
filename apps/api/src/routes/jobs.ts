@@ -56,7 +56,7 @@ router.get("/:id", async (req, res) => {
 
 router.post("/paste", async (req, res) => {
   const { text } = req.body;
-  if (!text || typeof text !== "string") {
+  if (!text || typeof text !== "string" || !text.trim()) {
     return res.status(400).json({ error: "Text is required" });
   }
   const parsed = parseManualPaste(text);

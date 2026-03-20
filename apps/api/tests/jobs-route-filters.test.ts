@@ -73,4 +73,11 @@ describe("jobs router filters", () => {
       })
     );
   });
+
+  it("rejects whitespace-only manual paste payloads", async () => {
+    const app = await createApp();
+    const res = await request(app).post("/api/jobs/paste").send({ text: "   " });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain("Text is required");
+  });
 });

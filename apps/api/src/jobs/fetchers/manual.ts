@@ -6,10 +6,11 @@ export interface ManualJobInput {
 }
 
 export function parseManualPaste(text: string): ManualJobInput {
-  const lines = text.trim().split("\n").map((l) => l.trim()).filter(Boolean);
+  const normalizedText = text.trim();
+  const lines = normalizedText.split("\n").map((l) => l.trim()).filter(Boolean);
   let title = "";
   let company = "";
-  let description = text;
+  let description = normalizedText;
   let url = "";
 
   for (const line of lines) {
@@ -28,8 +29,13 @@ export function parseManualPaste(text: string): ManualJobInput {
     description = lines.slice(2).join("\n");
   } else if (lines.length === 2) {
     title = lines[0] ?? "";
-    description = lines[1] ?? text;
+    description = lines[1] ?? normalizedText;
   }
 
-  return { title: title || "Unknown Role", company: company || "Unknown Company", description, url: url || undefined };
+  return {
+    title: title || "Unknown Role",
+    company: company || "Unknown Company",
+    description: description.trim(),
+    url: url || undefined,
+  };
 }

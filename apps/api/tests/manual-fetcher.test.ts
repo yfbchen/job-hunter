@@ -33,6 +33,6 @@ describe("parseManualPaste", () => {
     const parsed = parseManualPaste("  ");
     expect(parsed.title).toBe("Unknown Role");
     expect(parsed.company).toBe("Unknown Company");
-    expect(parsed.description).toBe("  ");
+    expect(parsed.description).toBe("");
   });
 });
