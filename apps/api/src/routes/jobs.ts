@@ -155,6 +155,9 @@ router.post("/:id/tailor", async (req, res) => {
 });
 
 router.post("/fetch", async (req, res) => {
+  const role = typeof req.body?.role === "string" ? req.body.role.trim() : "software engineer";
+  const location = typeof req.body?.location === "string" ? req.body.location.trim() : "remote";
+
   const added: string[] = [];
   const seen = new Set<string>();
 
@@ -164,7 +167,7 @@ router.post("/fetch", async (req, res) => {
   }
 
   try {
-    const remoteOkJobs = await fetchRemoteOkJobs();
+    const remoteOkJobs = await fetchRemoteOkJobs({ roleFilter: role || undefined });
     for (const j of remoteOkJobs) {
       const key = normalizeKey(j.position, j.company);
       if (!seen.has(key)) {
@@ -185,7 +188,7 @@ router.post("/fetch", async (req, res) => {
     console.error("RemoteOK fetch error:", e);
   }
 
-  const indeedRss = "https://rss.indeed.com/rss?q=software+engineer&l=remote";
+  const indeedRss = buildIndeedRssUrl(role || "software engineer", location || "remote");
   try {
     const rssJobs = await fetchRssJobs(indeedRss);
     for (const j of rssJobs) {
@@ -261,6 +264,12 @@ router.delete("/:id", async (req, res) => {
 
 function normalizeKey(title: string, company: string): string {
   return `${title.trim().toLowerCase()}|${company.trim().toLowerCase()}`;
+}
+
+function buildIndeedRssUrl(role: string, location: string): string {
+  const q = encodeURIComponent(role.trim()).replace(/%20/g, "+");
+  const l = encodeURIComponent(location.trim()).replace(/%20/g, "+");
+  return `https://rss.indeed.com/rss?q=${q}&l=${l}`;
 }
 
 function buildStubJobs(): Array<{

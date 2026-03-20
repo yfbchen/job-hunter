@@ -21,6 +21,8 @@ export function Dashboard({ onSelectJob }: DashboardProps) {
   const [days, setDays] = useState<number | "">(30);
   const [unscoredOnly, setUnscoredOnly] = useState(false);
   const [limit, setLimit] = useState<number | "">(50);
+  const [fetchRole, setFetchRole] = useState("software engineer");
+  const [fetchLocation, setFetchLocation] = useState("remote");
   const [notice, setNotice] = useState<string | null>(null);
   const [readiness, setReadiness] = useState<ReadinessStatus | null>(null);
 
@@ -63,7 +65,11 @@ export function Dashboard({ onSelectJob }: DashboardProps) {
   const handleFetch = async () => {
     setFetching(true);
     try {
-      const res = await fetch(`${API}/jobs/fetch`, { method: "POST" });
+      const res = await fetch(`${API}/jobs/fetch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: fetchRole.trim() || undefined, location: fetchLocation.trim() || undefined }),
+      });
       const payload = (await res.json()) as { message?: string };
       if (payload.message) {
         setNotice(payload.message);
@@ -255,6 +261,22 @@ export function Dashboard({ onSelectJob }: DashboardProps) {
             <option value={200}>200</option>
             <option value="">All</option>
           </select>
+          <label className="text-sm text-zinc-400">Role:</label>
+          <input
+            type="text"
+            value={fetchRole}
+            onChange={(e) => setFetchRole(e.target.value)}
+            placeholder="e.g. software engineer"
+            className="w-36 px-2 py-1 rounded bg-zinc-800 border border-zinc-700 text-zinc-200 text-sm placeholder-zinc-500"
+          />
+          <label className="text-sm text-zinc-400">Location:</label>
+          <input
+            type="text"
+            value={fetchLocation}
+            onChange={(e) => setFetchLocation(e.target.value)}
+            placeholder="e.g. remote"
+            className="w-24 px-2 py-1 rounded bg-zinc-800 border border-zinc-700 text-zinc-200 text-sm placeholder-zinc-500"
+          />
           <button
             onClick={handleFetch}
             disabled={fetching}
