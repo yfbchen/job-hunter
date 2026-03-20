@@ -3,6 +3,7 @@ import type { NextFunction, Request, Response } from "express";
 import cors from "cors";
 import { artifactsRouter } from "./routes/artifacts.js";
 import { jobsRouter } from "./routes/jobs.js";
+import { prisma } from "./lib/prisma.js";
 
 const app = express();
 const PORT = Number(process.env.PORT ?? 3001);
@@ -15,6 +16,23 @@ app.use("/api/artifacts", artifactsRouter);
 app.use("/api/jobs", jobsRouter);
 
 app.get("/api/health", (_, res) => res.json({ ok: true }));
+
+app.get("/api/health/readiness", async (_req, res) => {
+  const [resumeCount, coverLetterCount, totalJobs, unscoredJobs] = await Promise.all([
+    prisma.resume.count(),
+    prisma.coverLetter.count(),
+    prisma.job.count(),
+    prisma.job.count({ where: { score: null } }),
+  ]);
+
+  res.json({
+    resumeExists: resumeCount > 0,
+    coverLetterExists: coverLetterCount > 0,
+    totalJobs,
+    unscoredJobs,
+    scoredJobs: Math.max(0, totalJobs - unscoredJobs),
+  });
+});
 
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   console.error(err);

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import type { Job } from "../types";
+import type { Job, ReadinessStatus } from "../types";
 
 const API = "/api";
 const IS_DEV = import.meta.env.DEV;
@@ -20,6 +20,7 @@ export function Dashboard({ onSelectJob }: DashboardProps) {
   const [source, setSource] = useState<"" | "manual" | "rss" | "remoteok" | "linkedin" | "stub">("");
   const [days, setDays] = useState<number | "">(30);
   const [notice, setNotice] = useState<string | null>(null);
+  const [readiness, setReadiness] = useState<ReadinessStatus | null>(null);
 
   const loadJobs = async () => {
     setLoading(true);
@@ -40,8 +41,19 @@ export function Dashboard({ onSelectJob }: DashboardProps) {
     }
   };
 
+  const loadReadiness = async () => {
+    try {
+      const res = await fetch(`${API}/health/readiness`);
+      const data = (await res.json()) as ReadinessStatus;
+      setReadiness(data);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   useEffect(() => {
     loadJobs();
+    loadReadiness();
   }, [minScore, source, days]);
 
   const handleFetch = async () => {
@@ -53,6 +65,7 @@ export function Dashboard({ onSelectJob }: DashboardProps) {
         setNotice(payload.message);
       }
       await loadJobs();
+      await loadReadiness();
     } catch (e) {
       console.error(e);
       setNotice("Failed to fetch jobs.");
@@ -84,6 +97,7 @@ export function Dashboard({ onSelectJob }: DashboardProps) {
       const payload = (await res.json()) as { message?: string; error?: string };
       setNotice(payload.message ?? payload.error ?? "Stub jobs processed.");
       await loadJobs();
+      await loadReadiness();
     } catch (e) {
       console.error(e);
       setNotice("Failed to load stub jobs.");
@@ -93,6 +107,11 @@ export function Dashboard({ onSelectJob }: DashboardProps) {
   };
 
   const handleScoreUnscored = async () => {
+    if (readiness && !readiness.resumeExists) {
+      setNotice("Upload a resume first from the Artifacts page.");
+      return;
+    }
+
     setBulkScoring(true);
     try {
       const res = await fetch(`${API}/jobs/score-unscored`, {
@@ -103,11 +122,28 @@ export function Dashboard({ onSelectJob }: DashboardProps) {
       const payload = (await res.json()) as { message?: string; error?: string };
       setNotice(payload.message ?? payload.error ?? "Bulk scoring completed.");
       await loadJobs();
+      await loadReadiness();
     } catch (e) {
       console.error(e);
       setNotice("Failed to bulk score jobs.");
     } finally {
       setBulkScoring(false);
+    }
+  };
+
+  const handleClearStubs = async () => {
+    setFetching(true);
+    try {
+      const res = await fetch(`${API}/jobs/stubs`, { method: "DELETE" });
+      const payload = (await res.json()) as { message?: string; error?: string };
+      setNotice(payload.message ?? payload.error ?? "Stub jobs cleared.");
+      await loadJobs();
+      await loadReadiness();
+    } catch (e) {
+      console.error(e);
+      setNotice("Failed to clear stub jobs.");
+    } finally {
+      setFetching(false);
     }
   };
 
@@ -122,6 +158,7 @@ export function Dashboard({ onSelectJob }: DashboardProps) {
       setPasteText("");
       setPasteMode(false);
       await loadJobs();
+      await loadReadiness();
     } catch (e) {
       console.error(e);
     }
@@ -136,6 +173,26 @@ export function Dashboard({ onSelectJob }: DashboardProps) {
 
   return (
     <div className="space-y-6">
+      {readiness && (
+        <div className="p-4 rounded-xl bg-zinc-800/60 border border-zinc-700">
+          <h3 className="text-sm font-medium text-zinc-300 mb-2">MVP Readiness</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-sm">
+            <div className="text-zinc-300">
+              {readiness.resumeExists ? "✅" : "⬜"} Resume uploaded
+            </div>
+            <div className="text-zinc-300">
+              {readiness.coverLetterExists ? "✅" : "⬜"} Cover letter uploaded
+            </div>
+            <div className="text-zinc-300">
+              {readiness.totalJobs > 0 ? "✅" : "⬜"} Jobs fetched ({readiness.totalJobs})
+            </div>
+            <div className="text-zinc-300">
+              {readiness.unscoredJobs === 0 ? "✅" : "⬜"} Jobs scored ({readiness.scoredJobs}/{readiness.totalJobs})
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h2 className="text-xl font-semibold text-zinc-100">Job List</h2>
         <div className="flex items-center gap-2">
@@ -181,7 +238,7 @@ export function Dashboard({ onSelectJob }: DashboardProps) {
           </button>
           <button
             onClick={handleScoreUnscored}
-            disabled={bulkScoring}
+            disabled={bulkScoring || readiness?.resumeExists === false}
             className="px-3 py-1.5 rounded-md bg-zinc-700 hover:bg-zinc-600 text-zinc-200 text-sm font-medium disabled:opacity-50"
           >
             {bulkScoring ? "Scoring…" : "Score unscored"}
@@ -195,13 +252,22 @@ export function Dashboard({ onSelectJob }: DashboardProps) {
             LinkedIn Scrape (Not Available)
           </button>
           {IS_DEV && (
-            <button
-              onClick={handleLoadStubs}
-              disabled={fetching}
-              className="px-3 py-1.5 rounded-md bg-zinc-700 hover:bg-zinc-600 text-zinc-200 text-sm font-medium disabled:opacity-50"
-            >
-              Load stub jobs
-            </button>
+            <>
+              <button
+                onClick={handleLoadStubs}
+                disabled={fetching}
+                className="px-3 py-1.5 rounded-md bg-zinc-700 hover:bg-zinc-600 text-zinc-200 text-sm font-medium disabled:opacity-50"
+              >
+                Load stub jobs
+              </button>
+              <button
+                onClick={handleClearStubs}
+                disabled={fetching}
+                className="px-3 py-1.5 rounded-md bg-zinc-800 border border-zinc-700 text-zinc-300 text-sm font-medium disabled:opacity-50"
+              >
+                Clear stub jobs
+              </button>
+            </>
           )}
           <button
             onClick={() => setPasteMode(!pasteMode)}

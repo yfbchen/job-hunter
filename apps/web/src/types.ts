@@ -28,3 +28,11 @@ export interface TailoredArtifacts {
   resumeBullets: string;
   coverLetter: string;
 }
+
+export interface ReadinessStatus {
+  resumeExists: boolean;
+  coverLetterExists: boolean;
+  totalJobs: number;
+  unscoredJobs: number;
+  scoredJobs: number;
+}

@@ -225,6 +225,15 @@ router.post("/fetch/stubs", async (_req, res) => {
   res.json({ added: added.length, message: `Added ${added.length} stub jobs` });
 });
 
+router.delete("/stubs", async (_req, res) => {
+  if (process.env.NODE_ENV === "production") {
+    return res.status(403).json({ error: "Stub deletion is disabled in production." });
+  }
+
+  const deleted = await prisma.job.deleteMany({ where: { source: "stub" } });
+  res.json({ deleted: deleted.count, message: `Deleted ${deleted.count} stub jobs` });
+});
+
 router.post("/fetch/linkedin-mini", async (_req, res) => {
   res.status(501).json({
     error:
