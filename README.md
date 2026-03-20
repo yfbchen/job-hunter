@@ -47,6 +47,17 @@ job-hunter/
 - **Phase 2:** RSS + RemoteOK fetch, GitHub Actions daily run
 - **Phase 3:** LinkedIn scrape placeholder, apply-assistant, tracking dashboard
 
+### Current Phase 1 Status
+
+- Monorepo API/Web scaffold completed
+- Resume + cover artifact management (resume supports `.txt` and `.pdf`)
+- Job ingest via manual paste + RSS + RemoteOK
+- Per-job scoring and bulk scoring for unscored jobs
+- Tailoring flow with editable outputs before copy
+- Dashboard triage filters (score/source/time window/unscored-only/top-N)
+- Dev-only stub data load/clear controls
+- Readiness health endpoint + dashboard readiness checklist
+
 ## Getting Started
 
 ```bash
@@ -67,6 +78,16 @@ Create `apps/api/.env`:
 ```
 ANTHROPIC_API_KEY=sk-ant-...  # Optional; without this, local fallback scoring/tailoring is used
 DATABASE_URL="file:./dev.db"  # SQLite (default)
+```
+
+## Testing
+
+```bash
+# Run all tests (currently API specs)
+npm test
+
+# Run API tests in watch mode
+npm run test:watch -w apps/api
 ```
 
 ## SQLite Now, Supabase Later
