@@ -54,7 +54,7 @@ job-hunter/
 npm install
 
 # Set up environment (create apps/api/.env)
-# ANTHROPIC_API_KEY=sk-ant-...
+# ANTHROPIC_API_KEY=sk-ant-... (optional, enables LLM mode)
 
 # Run development (both web and api)
 npm run dev
@@ -65,6 +65,6 @@ npm run dev
 Create `apps/api/.env`:
 
 ```
-ANTHROPIC_API_KEY=sk-ant-...  # Required for scoring and tailoring
+ANTHROPIC_API_KEY=sk-ant-...  # Optional; without this, local fallback scoring/tailoring is used
 DATABASE_URL="file:./dev.db"  # SQLite (default)
 ```
