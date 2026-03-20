@@ -15,12 +15,27 @@ export function JobDetail({ jobId, onBack }: JobDetailProps) {
   const [tailoring, setTailoring] = useState(false);
   const [tailored, setTailored] = useState<TailoredArtifacts | null>(null);
   const [activeTab, setActiveTab] = useState<"description" | "tailored">("description");
+  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`${API}/jobs/${jobId}`)
-      .then((r) => r.json())
-      .then(setJob)
-      .finally(() => setLoading(false));
+    const loadJob = async () => {
+      try {
+        const res = await fetch(`${API}/jobs/${jobId}`);
+        const data = await res.json();
+        if (!res.ok) {
+          setNotice(data?.error ?? "Failed to load job details.");
+          return;
+        }
+        setJob(data);
+      } catch (e) {
+        console.error(e);
+        setNotice("Failed to load job details.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void loadJob();
   }, [jobId]);
 
   const handleScore = async () => {
@@ -28,9 +43,15 @@ export function JobDetail({ jobId, onBack }: JobDetailProps) {
     try {
       const res = await fetch(`${API}/jobs/${jobId}/score`, { method: "POST" });
       const data = await res.json();
+      if (!res.ok) {
+        setNotice(data?.error ?? "Scoring failed.");
+        return;
+      }
       setJob(data);
+      setNotice("Job scored successfully.");
     } catch (e) {
       console.error(e);
+      setNotice("Scoring failed.");
     } finally {
       setScoring(false);
     }
@@ -41,17 +62,29 @@ export function JobDetail({ jobId, onBack }: JobDetailProps) {
     try {
       const res = await fetch(`${API}/jobs/${jobId}/tailor`, { method: "POST" });
       const data = await res.json();
+      if (!res.ok) {
+        setNotice(data?.error ?? "Tailoring failed.");
+        return;
+      }
       setTailored(data);
       setActiveTab("tailored");
+      setNotice("Tailored artifacts generated.");
     } catch (e) {
       console.error(e);
+      setNotice("Tailoring failed.");
     } finally {
       setTailoring(false);
     }
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setNotice("Copied to clipboard.");
+    } catch (e) {
+      console.error(e);
+      setNotice("Failed to copy to clipboard.");
+    }
   };
 
   if (loading || !job) {
@@ -115,6 +148,12 @@ export function JobDetail({ jobId, onBack }: JobDetailProps) {
         </div>
       </div>
 
+      {notice && (
+        <div className="p-3 rounded-xl bg-zinc-800/70 border border-zinc-700 text-zinc-300 text-sm">
+          {notice}
+        </div>
+      )}
+
       {job.scoreReasoning && (
         <div className="p-4 rounded-xl bg-zinc-800/60 border border-zinc-700">
           <h4 className="text-sm font-medium text-zinc-400 mb-2">Match reasoning</h4>
@@ -161,7 +200,7 @@ export function JobDetail({ jobId, onBack }: JobDetailProps) {
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="text-sm font-medium text-zinc-400">Resume bullets</h4>
                   <button
-                    onClick={() => copyToClipboard(tailored.resumeBullets)}
+                    onClick={() => void copyToClipboard(tailored.resumeBullets)}
                     className="text-xs text-violet-400 hover:text-violet-300"
                   >
                     Copy
@@ -177,7 +216,7 @@ export function JobDetail({ jobId, onBack }: JobDetailProps) {
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="text-sm font-medium text-zinc-400">Cover letter</h4>
                   <button
-                    onClick={() => copyToClipboard(tailored.coverLetter)}
+                    onClick={() => void copyToClipboard(tailored.coverLetter)}
                     className="text-xs text-violet-400 hover:text-violet-300"
                   >
                     Copy

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import type { Job } from "../types";
 
 const API = "/api";
+const IS_DEV = import.meta.env.DEV;
 
 interface DashboardProps {
   onSelectJob: (id: string) => void;
@@ -15,7 +16,7 @@ export function Dashboard({ onSelectJob }: DashboardProps) {
   const [pasteMode, setPasteMode] = useState(false);
   const [pasteText, setPasteText] = useState("");
   const [minScore, setMinScore] = useState<number | "">("");
-  const [source, setSource] = useState<"" | "manual" | "rss" | "remoteok" | "linkedin">("");
+  const [source, setSource] = useState<"" | "manual" | "rss" | "remoteok" | "linkedin" | "stub">("");
   const [days, setDays] = useState<number | "">(30);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -75,6 +76,21 @@ export function Dashboard({ onSelectJob }: DashboardProps) {
     }
   };
 
+  const handleLoadStubs = async () => {
+    setFetching(true);
+    try {
+      const res = await fetch(`${API}/jobs/fetch/stubs`, { method: "POST" });
+      const payload = (await res.json()) as { message?: string; error?: string };
+      setNotice(payload.message ?? payload.error ?? "Stub jobs processed.");
+      await loadJobs();
+    } catch (e) {
+      console.error(e);
+      setNotice("Failed to load stub jobs.");
+    } finally {
+      setFetching(false);
+    }
+  };
+
   const handlePaste = async () => {
     if (!pasteText.trim()) return;
     try {
@@ -115,13 +131,14 @@ export function Dashboard({ onSelectJob }: DashboardProps) {
           <label className="text-sm text-zinc-400">Source:</label>
           <select
             value={source}
-            onChange={(e) => setSource(e.target.value as "" | "manual" | "rss" | "remoteok" | "linkedin")}
+            onChange={(e) => setSource(e.target.value as "" | "manual" | "rss" | "remoteok" | "linkedin" | "stub")}
             className="px-2 py-1 rounded bg-zinc-800 border border-zinc-700 text-zinc-200 text-sm"
           >
             <option value="">All</option>
             <option value="manual">Manual</option>
             <option value="rss">RSS</option>
             <option value="remoteok">RemoteOK</option>
+            {IS_DEV && <option value="stub">Stub</option>}
             <option value="linkedin">LinkedIn</option>
           </select>
           <label className="text-sm text-zinc-400">Window:</label>
@@ -150,6 +167,15 @@ export function Dashboard({ onSelectJob }: DashboardProps) {
           >
             LinkedIn Scrape (Not Available)
           </button>
+          {IS_DEV && (
+            <button
+              onClick={handleLoadStubs}
+              disabled={fetching}
+              className="px-3 py-1.5 rounded-md bg-zinc-700 hover:bg-zinc-600 text-zinc-200 text-sm font-medium disabled:opacity-50"
+            >
+              Load stub jobs
+            </button>
+          )}
           <button
             onClick={() => setPasteMode(!pasteMode)}
             className="px-3 py-1.5 rounded-md bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium"
