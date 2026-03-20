@@ -1,5 +1,6 @@
 import { Router } from "express";
 import multer from "multer";
+import { PDFParse } from "pdf-parse";
 import { prisma } from "../lib/prisma.js";
 
 const router = Router();
@@ -13,7 +14,7 @@ router.get("/resume", async (_, res) => {
 router.post("/resume", upload.single("file"), async (req, res) => {
   let content = "";
   if (req.file) {
-    content = req.file.buffer.toString("utf-8");
+    content = await extractResumeContent(req.file);
   } else if (typeof req.body?.content === "string") {
     content = req.body.content;
   }
@@ -36,6 +37,25 @@ router.put("/resume/:id", async (req, res) => {
   });
   res.json(resume);
 });
+
+async function extractResumeContent(file: Express.Multer.File): Promise<string> {
+  const lowerName = file.originalname.toLowerCase();
+  const isPdf = file.mimetype === "application/pdf" || lowerName.endsWith(".pdf");
+  const isText = file.mimetype.startsWith("text/") || lowerName.endsWith(".txt");
+
+  if (isPdf) {
+    const parser = new PDFParse({ data: file.buffer });
+    const parsed = await parser.getText();
+    await parser.destroy();
+    return parsed.text ?? "";
+  }
+
+  if (isText) {
+    return file.buffer.toString("utf-8");
+  }
+
+  throw Object.assign(new Error("Unsupported resume file type. Upload .txt or .pdf"), { status: 400 });
+}
 
 router.get("/cover-letter", async (_, res) => {
   const cover = await prisma.coverLetter.findFirst({ orderBy: { updatedAt: "desc" } });

@@ -102,11 +102,11 @@ export function Artifacts() {
         <h3 className="text-sm font-medium text-zinc-400 mb-2">Resume</h3>
         <div className="flex gap-2 mb-2">
           <label className="px-3 py-2 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-200 text-sm cursor-pointer">
-            {uploading ? "Uploading…" : "Upload .txt"}
+            {uploading ? "Uploading…" : "Upload .txt/.pdf"}
 
             <input
               type="file"
-              accept=".txt"
+              accept=".txt,.pdf,application/pdf,text/plain"
               onChange={uploadResume}
               className="hidden"
               disabled={uploading}
