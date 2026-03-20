@@ -55,7 +55,6 @@ job-hunter/
 - Per-job scoring and bulk scoring for unscored jobs
 - Tailoring flow with editable outputs before copy
 - Dashboard triage filters (score/source/time window/unscored-only/top-N)
-- Dev-only stub data load/clear controls
 - Readiness health endpoint + dashboard readiness checklist
 
 ## Getting Started
@@ -113,3 +112,7 @@ You can keep local development on SQLite and migrate to Supabase Postgres when y
 - Your current model shapes (`uuid` string IDs, timestamps, text fields) are portable.
 - Keep SQLite for local speed; use Supabase only for hosted environments.
 - This project currently does not use SQLite-specific raw SQL, so cutover risk is low.
+
+## Implementation Plan (Todo)
+
+- [ ] **Greenhouse + Lever fetchers** – Add job fetchers for Greenhouse (`boards-api.greenhouse.io`) and Lever (`api.lever.co`) APIs. Each company has its own board token; maintain a curated list of target companies and fetch jobs from each. No API key needed for Greenhouse job listing; official APIs, no scraping/blocking risk.

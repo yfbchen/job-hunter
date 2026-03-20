@@ -4,7 +4,6 @@ import { scoreJob } from "../jobs/scorer.js";
 import { tailorArtifacts } from "../jobs/tailor.js";
 import { parseManualPaste } from "../jobs/fetchers/manual.js";
 import { fetchRemoteOkJobs } from "../jobs/fetchers/remoteok.js";
-import { fetchRssJobs } from "../jobs/fetchers/rss.js";
 
 const router = Router();
 
@@ -28,9 +27,9 @@ router.get("/", async (req, res) => {
     return res.status(400).json({ error: "limit must be between 1 and 500" });
   }
 
-  const allowedSources = new Set(["manual", "rss", "remoteok", "linkedin", "stub"]);
+  const allowedSources = new Set(["manual", "rss", "remoteok", "linkedin"]);
   if (source && !allowedSources.has(source)) {
-    return res.status(400).json({ error: "source must be one of: manual, rss, remoteok, linkedin, stub" });
+    return res.status(400).json({ error: "source must be one of: manual, rss, remoteok, linkedin" });
   }
 
   const createdAfter = days != null ? new Date(Date.now() - days * 24 * 60 * 60 * 1000) : undefined;
@@ -90,6 +89,72 @@ router.post("/:id/score", async (req, res) => {
     data: { score, scoreReasoning: reasoning },
   });
   res.json(updated);
+});
+
+router.post("/score-selected", async (req, res) => {
+  const ids = req.body?.ids;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ error: "ids must be a non-empty array of job IDs" });
+  }
+  const validIds = ids.filter((id: unknown) => typeof id === "string" && id.trim().length > 0);
+  if (validIds.length === 0) {
+    return res.status(400).json({ error: "ids must be a non-empty array of job IDs" });
+  }
+
+  const resume = await prisma.resume.findFirst({ orderBy: { updatedAt: "desc" } });
+  if (!resume) return res.status(400).json({ error: "Upload a resume first" });
+
+  const jobs = await prisma.job.findMany({
+    where: { id: { in: validIds } },
+  });
+
+  let scored = 0;
+  const errors: string[] = [];
+  for (const job of jobs) {
+    try {
+      const { score, reasoning } = await scoreJob(resume.content, {
+        title: job.title,
+        company: job.company,
+        description: job.description,
+      });
+      await prisma.job.update({
+        where: { id: job.id },
+        data: { score, scoreReasoning: reasoning },
+      });
+      scored += 1;
+    } catch (e) {
+      console.error(`Failed to score job ${job.id}:`, e);
+      errors.push(job.id);
+    }
+  }
+
+  return res.json({
+    considered: jobs.length,
+    scored,
+    failed: errors.length,
+    failedIds: errors,
+    message: `Scored ${scored}/${jobs.length} selected jobs`,
+  });
+});
+
+router.post("/delete-selected", async (req, res) => {
+  const ids = req.body?.ids;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ error: "ids must be a non-empty array of job IDs" });
+  }
+  const validIds = ids.filter((id: unknown) => typeof id === "string" && id.trim().length > 0);
+  if (validIds.length === 0) {
+    return res.status(400).json({ error: "ids must be a non-empty array of job IDs" });
+  }
+
+  const result = await prisma.job.deleteMany({
+    where: { id: { in: validIds } },
+  });
+
+  return res.json({
+    deleted: result.count,
+    message: `Deleted ${result.count} jobs`,
+  });
 });
 
 router.post("/score-unscored", async (req, res) => {
@@ -188,63 +253,7 @@ router.post("/fetch", async (req, res) => {
     console.error("RemoteOK fetch error:", e);
   }
 
-  const indeedRss = buildIndeedRssUrl(role || "software engineer", location || "remote");
-  try {
-    const rssJobs = await fetchRssJobs(indeedRss);
-    for (const j of rssJobs) {
-      const key = normalizeKey(j.title, j.company);
-      if (!seen.has(key)) {
-        seen.add(key);
-        await prisma.job.create({
-          data: {
-            title: j.title,
-            company: j.company,
-            description: j.description,
-            url: j.url,
-            source: "rss",
-          },
-        });
-        added.push(key);
-      }
-    }
-  } catch (e) {
-    console.error("RSS fetch error:", e);
-  }
-
   res.json({ added: added.length, message: `Added ${added.length} new jobs` });
-});
-
-router.post("/fetch/stubs", async (_req, res) => {
-  if (process.env.NODE_ENV === "production") {
-    return res.status(403).json({ error: "Stub fetch is disabled in production." });
-  }
-
-  const added: string[] = [];
-  const seen = new Set<string>();
-
-  const existing = await prisma.job.findMany({ select: { title: true, company: true } });
-  for (const j of existing) {
-    seen.add(normalizeKey(j.title, j.company));
-  }
-
-  for (const stub of buildStubJobs()) {
-    const key = normalizeKey(stub.title, stub.company);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    await prisma.job.create({ data: stub });
-    added.push(key);
-  }
-
-  res.json({ added: added.length, message: `Added ${added.length} stub jobs` });
-});
-
-router.delete("/stubs", async (_req, res) => {
-  if (process.env.NODE_ENV === "production") {
-    return res.status(403).json({ error: "Stub deletion is disabled in production." });
-  }
-
-  const deleted = await prisma.job.deleteMany({ where: { source: "stub" } });
-  res.json({ deleted: deleted.count, message: `Deleted ${deleted.count} stub jobs` });
 });
 
 router.post("/fetch/linkedin-mini", async (_req, res) => {
@@ -264,65 +273,6 @@ router.delete("/:id", async (req, res) => {
 
 function normalizeKey(title: string, company: string): string {
   return `${title.trim().toLowerCase()}|${company.trim().toLowerCase()}`;
-}
-
-function buildIndeedRssUrl(role: string, location: string): string {
-  const q = encodeURIComponent(role.trim()).replace(/%20/g, "+");
-  const l = encodeURIComponent(location.trim()).replace(/%20/g, "+");
-  return `https://rss.indeed.com/rss?q=${q}&l=${l}`;
-}
-
-function buildStubJobs(): Array<{
-  title: string;
-  company: string;
-  description: string;
-  url: string;
-  source: string;
-  score: number;
-  scoreReasoning: string;
-}> {
-  return [
-    {
-      title: "Frontend Engineer (React/TypeScript)",
-      company: "Northstar Labs",
-      description:
-        "Build and iterate on a React + TypeScript dashboard for internal recruiting operations. Partner with product and design, improve UX performance, and ship features quickly in a monorepo environment.",
-      url: "https://example.com/jobs/frontend-react-typescript",
-      source: "stub",
-      score: 82,
-      scoreReasoning: "Strong React/TypeScript alignment and product-facing UI ownership.",
-    },
-    {
-      title: "Full Stack Engineer (Node + Prisma)",
-      company: "Beacon Talent",
-      description:
-        "Own API endpoints in Node/TypeScript, design Prisma data models, and integrate third-party job feeds. Bonus for experience with Vercel deployments and scheduled background workflows.",
-      url: "https://example.com/jobs/fullstack-node-prisma",
-      source: "stub",
-      score: 76,
-      scoreReasoning: "Good overlap with Node, Prisma, and job-ingest architecture.",
-    },
-    {
-      title: "Applied AI Engineer",
-      company: "RemoteFirst AI",
-      description:
-        "Implement LLM-powered scoring and content generation features. Build eval loops, prompt iteration workflows, and lightweight retrieval for personalized recommendation quality.",
-      url: "https://example.com/jobs/applied-ai-engineer",
-      source: "stub",
-      score: 68,
-      scoreReasoning: "Relevant to LLM integration and prompt-driven application tailoring.",
-    },
-    {
-      title: "Platform Engineer (Backend + DevEx)",
-      company: "Cloud Circuit",
-      description:
-        "Improve backend reliability, observability, and CI pipelines. Maintain TypeScript APIs, manage schema migrations, and reduce deploy risk through better test coverage and release tooling.",
-      url: "https://example.com/jobs/platform-backend-devex",
-      source: "stub",
-      score: 61,
-      scoreReasoning: "Moderate match on backend TypeScript and deployment workflows.",
-    },
-  ];
 }
 
 export { router as jobsRouter };

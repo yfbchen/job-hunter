@@ -14,13 +14,9 @@ const prismaMock = {
 vi.mock("../src/lib/prisma.js", () => ({ prisma: prismaMock }));
 
 const fetchRemoteOkJobsMock = vi.fn();
-const fetchRssJobsMock = vi.fn();
 
 vi.mock("../src/jobs/fetchers/remoteok.js", () => ({
   fetchRemoteOkJobs: fetchRemoteOkJobsMock,
-}));
-vi.mock("../src/jobs/fetchers/rss.js", () => ({
-  fetchRssJobs: fetchRssJobsMock,
 }));
 
 describe("POST /jobs/fetch role targeting", () => {
@@ -29,7 +25,6 @@ describe("POST /jobs/fetch role targeting", () => {
     prismaMock.job.findMany.mockResolvedValue([]);
     prismaMock.job.create.mockResolvedValue({});
     fetchRemoteOkJobsMock.mockResolvedValue([]);
-    fetchRssJobsMock.mockResolvedValue([]);
   });
 
   async function createApp() {
@@ -40,30 +35,21 @@ describe("POST /jobs/fetch role targeting", () => {
     return app;
   }
 
-  it("passes role and location to fetchers when provided", async () => {
+  it("passes role to RemoteOK fetcher when provided", async () => {
     const app = await createApp();
     await request(app)
       .post("/api/jobs/fetch")
       .send({ role: "product manager", location: "remote" });
 
     expect(fetchRemoteOkJobsMock).toHaveBeenCalledWith({ roleFilter: "product manager" });
-    expect(fetchRssJobsMock).toHaveBeenCalledWith(
-      expect.stringContaining("product+manager")
-    );
-    expect(fetchRssJobsMock).toHaveBeenCalledWith(
-      expect.stringContaining("l=remote")
-    );
   });
 
-  it("uses default role and location when body empty", async () => {
+  it("uses default role when body empty", async () => {
     const app = await createApp();
     await request(app).post("/api/jobs/fetch").send({});
 
     expect(fetchRemoteOkJobsMock).toHaveBeenCalledWith({
       roleFilter: "software engineer",
     });
-    expect(fetchRssJobsMock).toHaveBeenCalledWith(
-      expect.stringMatching(/q=software\+engineer/)
-    );
   });
 });

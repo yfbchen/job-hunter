@@ -1,8 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import type { Job, ReadinessStatus } from "../types";
+import { Toast } from "../components/Toast";
 
 const API = "/api";
-const IS_DEV = import.meta.env.DEV;
+
+type Notice = { message: string; type: "success" | "error" };
 
 interface DashboardProps {
   onSelectJob: (id: string) => void;
@@ -13,18 +15,20 @@ export function Dashboard({ onSelectJob }: DashboardProps) {
   const [loading, setLoading] = useState(true);
   const [fetching, setFetching] = useState(false);
   const [bulkScoring, setBulkScoring] = useState(false);
-  const [linkedinEnabled] = useState(false);
   const [pasteMode, setPasteMode] = useState(false);
   const [pasteText, setPasteText] = useState("");
   const [minScore, setMinScore] = useState<number | "">("");
-  const [source, setSource] = useState<"" | "manual" | "rss" | "remoteok" | "linkedin" | "stub">("");
+  const [source, setSource] = useState<"" | "manual" | "rss" | "remoteok" | "linkedin">("");
   const [days, setDays] = useState<number | "">(30);
   const [unscoredOnly, setUnscoredOnly] = useState(false);
   const [limit, setLimit] = useState<number | "">(50);
   const [fetchRole, setFetchRole] = useState("software engineer");
   const [fetchLocation, setFetchLocation] = useState("remote");
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<Notice | null>(null);
   const [readiness, setReadiness] = useState<ReadinessStatus | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const dismissNotice = useCallback(() => setNotice(null), []);
 
   const loadJobs = async () => {
     setLoading(true);
@@ -62,6 +66,17 @@ export function Dashboard({ onSelectJob }: DashboardProps) {
     loadReadiness();
   }, [minScore, source, days, unscoredOnly, limit]);
 
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      const jobIds = new Set(jobs.map((j) => j.id));
+      const next = new Set<string>();
+      for (const id of prev) {
+        if (jobIds.has(id)) next.add(id);
+      }
+      return next.size === prev.size ? prev : next;
+    });
+  }, [jobs]);
+
   const handleFetch = async () => {
     setFetching(true);
     try {
@@ -72,86 +87,94 @@ export function Dashboard({ onSelectJob }: DashboardProps) {
       });
       const payload = (await res.json()) as { message?: string };
       if (payload.message) {
-        setNotice(payload.message);
+        setNotice({ message: payload.message, type: "success" });
       }
       await loadJobs();
       await loadReadiness();
     } catch (e) {
       console.error(e);
-      setNotice("Failed to fetch jobs.");
+      setNotice({ message: "Failed to fetch jobs.", type: "error" });
     } finally {
       setFetching(false);
     }
   };
 
-  const handleLinkedInMiniScrape = async () => {
-    if (!linkedinEnabled) {
-      setNotice("LinkedIn mini-scrape is post-MVP and currently disabled.");
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAll = () => {
+    setSelectedIds(new Set(jobs.map((j) => j.id)));
+  };
+
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+  };
+
+  const handleScoreSelected = async () => {
+    if (selectedIds.size === 0) {
+      setNotice({ message: "Select at least one job to score.", type: "error" });
       return;
     }
-
-    try {
-      const res = await fetch(`${API}/jobs/fetch/linkedin-mini`, { method: "POST" });
-      const payload = (await res.json()) as { message?: string; error?: string };
-      setNotice(payload.message ?? payload.error ?? "LinkedIn mini-scrape triggered.");
-    } catch (e) {
-      console.error(e);
-      setNotice("Failed to trigger LinkedIn mini-scrape.");
-    }
-  };
-
-  const handleLoadStubs = async () => {
-    setFetching(true);
-    try {
-      const res = await fetch(`${API}/jobs/fetch/stubs`, { method: "POST" });
-      const payload = (await res.json()) as { message?: string; error?: string };
-      setNotice(payload.message ?? payload.error ?? "Stub jobs processed.");
-      await loadJobs();
-      await loadReadiness();
-    } catch (e) {
-      console.error(e);
-      setNotice("Failed to load stub jobs.");
-    } finally {
-      setFetching(false);
-    }
-  };
-
-  const handleScoreUnscored = async () => {
     if (readiness && !readiness.resumeExists) {
-      setNotice("Upload a resume first from the Artifacts page.");
+      setNotice({ message: "Upload a resume first from the Artifacts page.", type: "error" });
       return;
     }
 
     setBulkScoring(true);
     try {
-      const res = await fetch(`${API}/jobs/score-unscored`, {
+      const res = await fetch(`${API}/jobs/score-selected`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ limit: 20 }),
+        body: JSON.stringify({ ids: Array.from(selectedIds) }),
       });
       const payload = (await res.json()) as { message?: string; error?: string };
-      setNotice(payload.message ?? payload.error ?? "Bulk scoring completed.");
+      const isError = !!payload.error;
+      setNotice({
+        message: payload.message ?? payload.error ?? "Scoring completed.",
+        type: isError ? "error" : "success",
+      });
+      setSelectedIds(new Set());
       await loadJobs();
       await loadReadiness();
     } catch (e) {
       console.error(e);
-      setNotice("Failed to bulk score jobs.");
+      setNotice({ message: "Failed to score selected jobs.", type: "error" });
     } finally {
       setBulkScoring(false);
     }
   };
 
-  const handleClearStubs = async () => {
+  const handleDeleteSelected = async () => {
+    if (selectedIds.size === 0) {
+      setNotice({ message: "Select at least one job to delete.", type: "error" });
+      return;
+    }
+
     setFetching(true);
     try {
-      const res = await fetch(`${API}/jobs/stubs`, { method: "DELETE" });
+      const res = await fetch(`${API}/jobs/delete-selected`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: Array.from(selectedIds) }),
+      });
       const payload = (await res.json()) as { message?: string; error?: string };
-      setNotice(payload.message ?? payload.error ?? "Stub jobs cleared.");
+      const isError = !!payload.error;
+      setNotice({
+        message: payload.message ?? payload.error ?? "Jobs deleted.",
+        type: isError ? "error" : "success",
+      });
+      setSelectedIds(new Set());
       await loadJobs();
       await loadReadiness();
     } catch (e) {
       console.error(e);
-      setNotice("Failed to clear stub jobs.");
+      setNotice({ message: "Failed to delete selected jobs.", type: "error" });
     } finally {
       setFetching(false);
     }
@@ -167,10 +190,12 @@ export function Dashboard({ onSelectJob }: DashboardProps) {
       });
       setPasteText("");
       setPasteMode(false);
+      setNotice({ message: "Job added.", type: "success" });
       await loadJobs();
       await loadReadiness();
     } catch (e) {
       console.error(e);
+      setNotice({ message: "Failed to add job.", type: "error" });
     }
   };
 
@@ -203,44 +228,118 @@ export function Dashboard({ onSelectJob }: DashboardProps) {
         </div>
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h2 className="text-xl font-semibold text-zinc-100">Job List</h2>
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-zinc-400">Min score:</label>
-          <input
-            type="number"
-            min={0}
-            max={100}
-            value={minScore}
-            onChange={(e) => setMinScore(e.target.value === "" ? "" : Number(e.target.value))}
-            disabled={unscoredOnly}
-            className="w-16 px-2 py-1 rounded bg-zinc-800 border border-zinc-700 text-zinc-200 text-sm disabled:opacity-50"
-          />
-          <label className="text-sm text-zinc-400">Source:</label>
-          <select
-            value={source}
-            onChange={(e) => setSource(e.target.value as "" | "manual" | "rss" | "remoteok" | "linkedin" | "stub")}
-            className="px-2 py-1 rounded bg-zinc-800 border border-zinc-700 text-zinc-200 text-sm"
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setPasteMode(!pasteMode)}
+            className="px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium"
           >
-            <option value="">All</option>
-            <option value="manual">Manual</option>
-            <option value="rss">RSS</option>
-            <option value="remoteok">RemoteOK</option>
-            {IS_DEV && <option value="stub">Stub</option>}
-            <option value="linkedin">LinkedIn</option>
-          </select>
-          <label className="text-sm text-zinc-400">Window:</label>
-          <select
-            value={days}
-            onChange={(e) => setDays(e.target.value === "" ? "" : Number(e.target.value))}
-            className="px-2 py-1 rounded bg-zinc-800 border border-zinc-700 text-zinc-200 text-sm"
+            Paste job
+          </button>
+          <button
+            onClick={handleFetch}
+            disabled={fetching}
+            className="px-4 py-2 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-200 text-sm font-medium disabled:opacity-50"
           >
-            <option value="">All time</option>
-            <option value={7}>7d</option>
-            <option value={30}>30d</option>
-            <option value={90}>90d</option>
-          </select>
-          <label className="inline-flex items-center gap-1.5 text-sm text-zinc-400">
+            {fetching ? "Fetching…" : "Fetch"}
+          </button>
+          <div className="relative">
+            <button
+              onClick={() => setFiltersOpen(!filtersOpen)}
+              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                filtersOpen
+                  ? "bg-zinc-700 text-zinc-200"
+                  : "bg-zinc-800/60 border border-zinc-700 text-zinc-400 hover:text-zinc-200"
+              }`}
+            >
+              {filtersOpen ? "Hide filters" : "Filters"}
+            </button>
+            {filtersOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-40 bg-black/40"
+                  onClick={() => setFiltersOpen(false)}
+                  aria-hidden
+                />
+                <div className="absolute top-full right-0 mt-2 z-50 w-[calc(100vw-2rem)] max-w-2xl p-4 rounded-xl bg-zinc-800 border border-zinc-600 shadow-xl space-y-4">
+            <h3 className="text-sm font-medium text-zinc-400">Filter list</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+            <div>
+              <label className="block text-xs text-zinc-500 mb-1">Min score</label>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                value={minScore}
+                onChange={(e) => setMinScore(e.target.value === "" ? "" : Number(e.target.value))}
+                disabled={unscoredOnly}
+                className="w-full h-9 px-3 rounded-lg bg-zinc-900 border border-zinc-700 text-zinc-200 text-sm disabled:opacity-50"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-zinc-500 mb-1">Source</label>
+              <select
+                value={source}
+                onChange={(e) => setSource(e.target.value as "" | "manual" | "rss" | "remoteok" | "linkedin")}
+                className="w-full h-9 px-3 rounded-lg bg-zinc-900 border border-zinc-700 text-zinc-200 text-sm"
+              >
+                <option value="">All</option>
+                <option value="manual">Manual</option>
+                <option value="rss">RSS</option>
+                <option value="remoteok">RemoteOK</option>
+                <option value="linkedin">LinkedIn</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-zinc-500 mb-1">Time window</label>
+              <select
+                value={days}
+                onChange={(e) => setDays(e.target.value === "" ? "" : Number(e.target.value))}
+                className="w-full h-9 px-3 rounded-lg bg-zinc-900 border border-zinc-700 text-zinc-200 text-sm"
+              >
+                <option value="">All time</option>
+                <option value={7}>7 days</option>
+                <option value={30}>30 days</option>
+                <option value={90}>90 days</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-zinc-500 mb-1">Show top</label>
+              <select
+                value={limit}
+                onChange={(e) => setLimit(e.target.value === "" ? "" : Number(e.target.value))}
+                className="w-full h-9 px-3 rounded-lg bg-zinc-900 border border-zinc-700 text-zinc-200 text-sm"
+              >
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+                <option value={200}>200</option>
+                <option value="">All</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-zinc-500 mb-1">Role</label>
+              <input
+                type="text"
+                value={fetchRole}
+                onChange={(e) => setFetchRole(e.target.value)}
+                placeholder="e.g. software engineer"
+                className="w-full h-9 px-3 rounded-lg bg-zinc-900 border border-zinc-700 text-zinc-200 text-sm placeholder-zinc-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-zinc-500 mb-1">Location</label>
+              <input
+                type="text"
+                value={fetchLocation}
+                onChange={(e) => setFetchLocation(e.target.value)}
+                placeholder="e.g. remote"
+                className="w-full h-9 px-3 rounded-lg bg-zinc-900 border border-zinc-700 text-zinc-200 text-sm placeholder-zinc-500"
+              />
+            </div>
+          </div>
+          <label className="inline-flex items-center gap-2 text-sm text-zinc-400">
             <input
               type="checkbox"
               checked={unscoredOnly}
@@ -249,111 +348,66 @@ export function Dashboard({ onSelectJob }: DashboardProps) {
             />
             Unscored only
           </label>
-          <label className="text-sm text-zinc-400">Top:</label>
-          <select
-            value={limit}
-            onChange={(e) => setLimit(e.target.value === "" ? "" : Number(e.target.value))}
-            className="px-2 py-1 rounded bg-zinc-800 border border-zinc-700 text-zinc-200 text-sm"
-          >
-            <option value={25}>25</option>
-            <option value={50}>50</option>
-            <option value={100}>100</option>
-            <option value={200}>200</option>
-            <option value="">All</option>
-          </select>
-          <label className="text-sm text-zinc-400">Role:</label>
-          <input
-            type="text"
-            value={fetchRole}
-            onChange={(e) => setFetchRole(e.target.value)}
-            placeholder="e.g. software engineer"
-            className="w-36 px-2 py-1 rounded bg-zinc-800 border border-zinc-700 text-zinc-200 text-sm placeholder-zinc-500"
-          />
-          <label className="text-sm text-zinc-400">Location:</label>
-          <input
-            type="text"
-            value={fetchLocation}
-            onChange={(e) => setFetchLocation(e.target.value)}
-            placeholder="e.g. remote"
-            className="w-24 px-2 py-1 rounded bg-zinc-800 border border-zinc-700 text-zinc-200 text-sm placeholder-zinc-500"
-          />
-          <button
-            onClick={handleFetch}
-            disabled={fetching}
-            className="px-3 py-1.5 rounded-md bg-zinc-700 hover:bg-zinc-600 text-zinc-200 text-sm font-medium disabled:opacity-50"
-          >
-            {fetching ? "Fetching…" : "Fetch jobs"}
-          </button>
-          <button
-            onClick={handleScoreUnscored}
-            disabled={bulkScoring || readiness?.resumeExists === false}
-            className="px-3 py-1.5 rounded-md bg-zinc-700 hover:bg-zinc-600 text-zinc-200 text-sm font-medium disabled:opacity-50"
-          >
-            {bulkScoring ? "Scoring…" : "Score unscored"}
-          </button>
-          <button
-            onClick={handleLinkedInMiniScrape}
-            disabled={!linkedinEnabled}
-            title="Post-MVP placeholder"
-            className="px-3 py-1.5 rounded-md bg-zinc-800 border border-zinc-700 text-zinc-400 text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            LinkedIn Scrape (Not Available)
-          </button>
-          {IS_DEV && (
-            <>
-              <button
-                onClick={handleLoadStubs}
-                disabled={fetching}
-                className="px-3 py-1.5 rounded-md bg-zinc-700 hover:bg-zinc-600 text-zinc-200 text-sm font-medium disabled:opacity-50"
-              >
-                Load stub jobs
-              </button>
-              <button
-                onClick={handleClearStubs}
-                disabled={fetching}
-                className="px-3 py-1.5 rounded-md bg-zinc-800 border border-zinc-700 text-zinc-300 text-sm font-medium disabled:opacity-50"
-              >
-                Clear stub jobs
-              </button>
-            </>
-          )}
-          <button
-            onClick={() => setPasteMode(!pasteMode)}
-            className="px-3 py-1.5 rounded-md bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium"
-          >
-            Paste job
-          </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
-      {notice && (
-        <div className="px-3 py-2 rounded-lg border border-zinc-700 bg-zinc-800/70 text-sm text-zinc-300">
-          {notice}
+      <div className="flex flex-wrap gap-2">
+          <button
+            onClick={handleScoreSelected}
+            disabled={bulkScoring || selectedIds.size === 0 || readiness?.resumeExists === false}
+            className="px-4 py-2 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-200 text-sm font-medium disabled:opacity-50"
+          >
+            {bulkScoring ? "Scoring…" : "Score Selected"}
+          </button>
+          <button
+            onClick={handleDeleteSelected}
+            disabled={fetching || selectedIds.size === 0}
+            className="px-4 py-2 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-200 text-sm font-medium disabled:opacity-50"
+          >
+            Delete Selected
+          </button>
         </div>
+
+      {notice && (
+        <Toast message={notice.message} type={notice.type} onDismiss={dismissNotice} />
       )}
 
       {pasteMode && (
-        <div className="p-4 rounded-xl bg-zinc-800/80 border border-zinc-700">
-          <textarea
-            value={pasteText}
-            onChange={(e) => setPasteText(e.target.value)}
-            placeholder="Paste job title, company, and description (or full URL). One per line."
-            className="w-full h-32 px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-600 text-zinc-200 placeholder-zinc-500 text-sm resize-none"
-          />
-          <div className="flex gap-2 mt-2">
-            <button
-              onClick={handlePaste}
-              disabled={!pasteText.trim()}
-              className="px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium disabled:opacity-50"
-            >
-              Add job
-            </button>
-            <button
-              onClick={() => { setPasteMode(false); setPasteText(""); }}
-              className="px-4 py-2 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-200 text-sm"
-            >
-              Cancel
-            </button>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60"
+          onClick={() => { setPasteMode(false); setPasteText(""); }}
+        >
+          <div
+            className="w-full max-w-lg p-5 rounded-xl bg-zinc-800 border border-zinc-700 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-sm font-medium text-zinc-200 mb-3">Paste job</h3>
+            <textarea
+              value={pasteText}
+              onChange={(e) => setPasteText(e.target.value)}
+              placeholder="Paste job title, company, and description (or full URL). One per line."
+              className="w-full h-36 px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-600 text-zinc-200 placeholder-zinc-500 text-sm resize-none"
+              autoFocus
+            />
+            <div className="flex gap-2 mt-3 justify-end">
+              <button
+                onClick={() => { setPasteMode(false); setPasteText(""); }}
+                className="px-4 py-2 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-200 text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handlePaste}
+                disabled={!pasteText.trim()}
+                className="px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium disabled:opacity-50"
+              >
+                Find Job(s)
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -365,30 +419,60 @@ export function Dashboard({ onSelectJob }: DashboardProps) {
           No jobs yet. Paste a job or fetch from RSS/RemoteOK.
         </div>
       ) : (
-        <ul className="space-y-2">
-          {jobs.map((job) => (
-            <li
-              key={job.id}
-              onClick={() => onSelectJob(job.id)}
-              className="p-4 rounded-xl bg-zinc-800/60 border border-zinc-700/80 hover:border-zinc-600 cursor-pointer transition-colors"
+        <div className="space-y-2">
+          <div className="flex items-center gap-3 px-2 py-1 text-sm text-zinc-500">
+            <button
+              onClick={selectAll}
+              className="hover:text-zinc-300"
             >
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0 flex-1">
-                  <h3 className="font-medium text-zinc-100 truncate">{job.title}</h3>
-                  <p className="text-sm text-zinc-400">{job.company}</p>
-                  <span className="inline-block mt-1 text-xs text-zinc-500 uppercase tracking-wide">
-                    {job.source}
-                  </span>
+              Select all
+            </button>
+            <button
+              onClick={clearSelection}
+              className="hover:text-zinc-300"
+            >
+              Clear selection
+            </button>
+            {selectedIds.size > 0 && (
+              <span className="text-zinc-400">{selectedIds.size} selected</span>
+            )}
+          </div>
+          <ul className="space-y-2">
+            {jobs.map((job) => (
+              <li
+                key={job.id}
+                onClick={() => onSelectJob(job.id)}
+                className={`p-4 rounded-xl border cursor-pointer transition-colors flex items-start gap-3 ${
+                  selectedIds.has(job.id)
+                    ? "bg-zinc-700/80 border-violet-500/50"
+                    : "bg-zinc-800/60 border-zinc-700/80 hover:border-zinc-600"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedIds.has(job.id)}
+                  onChange={() => toggleSelect(job.id)}
+                  onClick={(e) => e.stopPropagation()}
+                  className="mt-1 accent-violet-500 shrink-0"
+                />
+                <div className="flex items-start justify-between gap-4 min-w-0 flex-1">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-medium text-zinc-100 truncate">{job.title}</h3>
+                    <p className="text-sm text-zinc-400">{job.company}</p>
+                    <span className="inline-block mt-1 text-xs text-zinc-500 uppercase tracking-wide">
+                      {job.source}
+                    </span>
+                  </div>
+                  {job.score != null && (
+                    <span className={`text-lg font-semibold tabular-nums shrink-0 ${scoreColor(job.score)}`}>
+                      {Math.round(job.score)}
+                    </span>
+                  )}
                 </div>
-                {job.score != null && (
-                  <span className={`text-lg font-semibold tabular-nums ${scoreColor(job.score)}`}>
-                    {Math.round(job.score)}
-                  </span>
-                )}
-              </div>
-            </li>
-          ))}
-        </ul>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </div>
   );

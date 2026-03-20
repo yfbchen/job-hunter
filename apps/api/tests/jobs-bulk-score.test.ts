@@ -1,6 +1,6 @@
 import express from "express";
 import request from "supertest";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const prismaMock = {
   job: {
@@ -31,13 +31,9 @@ vi.mock("../src/jobs/scorer.js", () => ({
   scoreJob: scoreJobMock,
 }));
 
-describe("jobs bulk score and stub guards", () => {
+describe("jobs bulk score", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-  });
-
-  afterEach(() => {
-    delete process.env.NODE_ENV;
   });
 
   async function createApp() {
@@ -76,16 +72,43 @@ describe("jobs bulk score and stub guards", () => {
     expect(prismaMock.job.update).toHaveBeenCalledTimes(2);
   });
 
-  it("blocks stub endpoints in production", async () => {
-    process.env.NODE_ENV = "production";
+  it("score-selected returns 400 when ids is empty", async () => {
     const app = await createApp();
+    const res = await request(app).post("/api/jobs/score-selected").send({ ids: [] });
+    expect(res.status).toBe(400);
+  });
 
-    const addRes = await request(app).post("/api/jobs/fetch/stubs");
-    expect(addRes.status).toBe(403);
-    expect(addRes.body.error).toContain("disabled");
+  it("score-selected scores jobs by id and returns summary", async () => {
+    prismaMock.resume.findFirst.mockResolvedValue({ id: "r1", content: "resume" });
+    prismaMock.job.findMany.mockResolvedValue([
+      { id: "j1", title: "A", company: "X", description: "desc1" },
+      { id: "j2", title: "B", company: "Y", description: "desc2" },
+    ]);
+    scoreJobMock.mockResolvedValue({ score: 80, reasoning: "fit" });
+    prismaMock.job.update.mockResolvedValue({});
 
-    const delRes = await request(app).delete("/api/jobs/stubs");
-    expect(delRes.status).toBe(403);
-    expect(delRes.body.error).toContain("disabled");
+    const app = await createApp();
+    const res = await request(app).post("/api/jobs/score-selected").send({ ids: ["j1", "j2"] });
+
+    expect(res.status).toBe(200);
+    expect(res.body.scored).toBe(2);
+    expect(prismaMock.job.findMany).toHaveBeenCalledWith({ where: { id: { in: ["j1", "j2"] } } });
+  });
+
+  it("delete-selected returns 400 when ids is empty", async () => {
+    const app = await createApp();
+    const res = await request(app).post("/api/jobs/delete-selected").send({ ids: [] });
+    expect(res.status).toBe(400);
+  });
+
+  it("delete-selected deletes jobs by id", async () => {
+    prismaMock.job.deleteMany.mockResolvedValue({ count: 2 });
+
+    const app = await createApp();
+    const res = await request(app).post("/api/jobs/delete-selected").send({ ids: ["j1", "j2"] });
+
+    expect(res.status).toBe(200);
+    expect(res.body.deleted).toBe(2);
+    expect(prismaMock.job.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ["j1", "j2"] } } });
   });
 });

@@ -1,7 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import type { Job, TailoredArtifacts } from "../types";
+import { Toast } from "../components/Toast";
 
 const API = "/api";
+
+type Notice = { message: string; type: "success" | "error" };
 
 interface JobDetailProps {
   jobId: string;
@@ -18,7 +21,8 @@ export function JobDetail({ jobId, onBack }: JobDetailProps) {
   const [resumeBulletsEdit, setResumeBulletsEdit] = useState("");
   const [coverLetterEdit, setCoverLetterEdit] = useState("");
   const [activeTab, setActiveTab] = useState<"description" | "tailored">("description");
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<Notice | null>(null);
+  const dismissNotice = useCallback(() => setNotice(null), []);
 
   useEffect(() => {
     const loadJob = async () => {
@@ -26,13 +30,13 @@ export function JobDetail({ jobId, onBack }: JobDetailProps) {
         const res = await fetch(`${API}/jobs/${jobId}`);
         const data = await res.json();
         if (!res.ok) {
-          setNotice(data?.error ?? "Failed to load job details.");
+          setNotice({ message: data?.error ?? "Failed to load job details.", type: "error" });
           return;
         }
         setJob(data);
       } catch (e) {
         console.error(e);
-        setNotice("Failed to load job details.");
+        setNotice({ message: "Failed to load job details.", type: "error" });
       } finally {
         setLoading(false);
       }
@@ -47,14 +51,14 @@ export function JobDetail({ jobId, onBack }: JobDetailProps) {
       const res = await fetch(`${API}/jobs/${jobId}/score`, { method: "POST" });
       const data = await res.json();
       if (!res.ok) {
-        setNotice(data?.error ?? "Scoring failed.");
+        setNotice({ message: data?.error ?? "Scoring failed.", type: "error" });
         return;
       }
       setJob(data);
-      setNotice("Job scored successfully.");
+      setNotice({ message: "Job scored successfully.", type: "success" });
     } catch (e) {
       console.error(e);
-      setNotice("Scoring failed.");
+      setNotice({ message: "Scoring failed.", type: "error" });
     } finally {
       setScoring(false);
     }
@@ -66,17 +70,17 @@ export function JobDetail({ jobId, onBack }: JobDetailProps) {
       const res = await fetch(`${API}/jobs/${jobId}/tailor`, { method: "POST" });
       const data = await res.json();
       if (!res.ok) {
-        setNotice(data?.error ?? "Tailoring failed.");
+        setNotice({ message: data?.error ?? "Tailoring failed.", type: "error" });
         return;
       }
       setTailored(data);
       setResumeBulletsEdit(data.resumeBullets ?? "");
       setCoverLetterEdit(data.coverLetter ?? "");
       setActiveTab("tailored");
-      setNotice("Tailored artifacts generated.");
+      setNotice({ message: "Tailored artifacts generated.", type: "success" });
     } catch (e) {
       console.error(e);
-      setNotice("Tailoring failed.");
+      setNotice({ message: "Tailoring failed.", type: "error" });
     } finally {
       setTailoring(false);
     }
@@ -85,10 +89,10 @@ export function JobDetail({ jobId, onBack }: JobDetailProps) {
   const copyToClipboard = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      setNotice("Copied to clipboard.");
+      setNotice({ message: "Copied to clipboard.", type: "success" });
     } catch (e) {
       console.error(e);
-      setNotice("Failed to copy to clipboard.");
+      setNotice({ message: "Failed to copy to clipboard.", type: "error" });
     }
   };
 
@@ -101,13 +105,13 @@ export function JobDetail({ jobId, onBack }: JobDetailProps) {
     try {
       const res = await fetch(`${API}/jobs/${job.id}`, { method: "DELETE" });
       if (!res.ok) {
-        setNotice("Failed to delete job.");
+        setNotice({ message: "Failed to delete job.", type: "error" });
         return;
       }
       onBack();
     } catch (e) {
       console.error(e);
-      setNotice("Failed to delete job.");
+      setNotice({ message: "Failed to delete job.", type: "error" });
     } finally {
       setDeleting(false);
     }
@@ -182,9 +186,7 @@ export function JobDetail({ jobId, onBack }: JobDetailProps) {
       </div>
 
       {notice && (
-        <div className="p-3 rounded-xl bg-zinc-800/70 border border-zinc-700 text-zinc-300 text-sm">
-          {notice}
-        </div>
+        <Toast message={notice.message} type={notice.type} onDismiss={dismissNotice} />
       )}
 
       {job.scoreReasoning && (
