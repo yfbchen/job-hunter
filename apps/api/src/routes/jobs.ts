@@ -10,14 +10,32 @@ const router = Router();
 
 router.get("/", async (req, res) => {
   const minScore = req.query.minScore ? Number(req.query.minScore) : undefined;
+  const source = typeof req.query.source === "string" ? req.query.source.trim().toLowerCase() : undefined;
+  const days = req.query.days ? Number(req.query.days) : undefined;
+
   if (minScore != null && Number.isNaN(minScore)) {
     return res.status(400).json({ error: "minScore must be numeric" });
   }
+  if (days != null && (Number.isNaN(days) || days < 1)) {
+    return res.status(400).json({ error: "days must be a positive number" });
+  }
+
+  const allowedSources = new Set(["manual", "rss", "remoteok", "linkedin"]);
+  if (source && !allowedSources.has(source)) {
+    return res.status(400).json({ error: "source must be one of: manual, rss, remoteok, linkedin" });
+  }
+
+  const createdAfter = days != null ? new Date(Date.now() - days * 24 * 60 * 60 * 1000) : undefined;
   const jobs = await prisma.job.findMany({
+    where: {
+      ...(source ? { source } : {}),
+      ...(createdAfter ? { createdAt: { gte: createdAfter } } : {}),
+      ...(minScore != null ? { score: { gte: minScore } } : {}),
+    },
     orderBy: [{ score: "desc" }, { createdAt: "desc" }],
   });
-  const filtered = minScore != null ? jobs.filter((j) => (j.score ?? 0) >= minScore) : jobs;
-  res.json(filtered);
+
+  res.json(jobs);
 });
 
 router.get("/:id", async (req, res) => {

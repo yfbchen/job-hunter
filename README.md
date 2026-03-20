@@ -68,3 +68,27 @@ Create `apps/api/.env`:
 ANTHROPIC_API_KEY=sk-ant-...  # Optional; without this, local fallback scoring/tailoring is used
 DATABASE_URL="file:./dev.db"  # SQLite (default)
 ```
+
+## SQLite Now, Supabase Later
+
+You can keep local development on SQLite and migrate to Supabase Postgres when you deploy.
+
+### Migration Checklist
+
+1. Create a Supabase project and copy the Postgres connection string.
+2. Set production `DATABASE_URL` (Vercel environment variable) to the Supabase connection string.
+3. Update Prisma datasource provider from `sqlite` to `postgresql` in `apps/api/prisma/schema.prisma`.
+4. Create and apply migrations for Postgres:
+   - `npm run db:generate`
+   - `npx prisma migrate dev --name init_postgres` (run locally against Postgres URL)
+   - `npx prisma migrate deploy` (in deploy pipeline/runtime)
+5. Deploy API with the new environment variable and run a smoke test:
+   - `GET /api/health`
+   - `POST /api/jobs/fetch`
+   - `GET /api/jobs`
+
+### Notes
+
+- Your current model shapes (`uuid` string IDs, timestamps, text fields) are portable.
+- Keep SQLite for local speed; use Supabase only for hosted environments.
+- This project currently does not use SQLite-specific raw SQL, so cutover risk is low.

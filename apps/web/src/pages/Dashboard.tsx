@@ -14,11 +14,18 @@ export function Dashboard({ onSelectJob }: DashboardProps) {
   const [pasteMode, setPasteMode] = useState(false);
   const [pasteText, setPasteText] = useState("");
   const [minScore, setMinScore] = useState<number | "">("");
+  const [source, setSource] = useState<"" | "manual" | "rss" | "remoteok" | "linkedin">("");
+  const [days, setDays] = useState<number | "">(30);
 
   const loadJobs = async () => {
     setLoading(true);
     try {
-      const url = minScore !== "" ? `${API}/jobs?minScore=${minScore}` : `${API}/jobs`;
+      const params = new URLSearchParams();
+      if (minScore !== "") params.set("minScore", String(minScore));
+      if (source !== "") params.set("source", source);
+      if (days !== "") params.set("days", String(days));
+      const query = params.toString();
+      const url = query ? `${API}/jobs?${query}` : `${API}/jobs`;
       const res = await fetch(url);
       const data = await res.json();
       setJobs(data);
@@ -31,7 +38,7 @@ export function Dashboard({ onSelectJob }: DashboardProps) {
 
   useEffect(() => {
     loadJobs();
-  }, [minScore]);
+  }, [minScore, source, days]);
 
   const handleFetch = async () => {
     setFetching(true);
@@ -82,6 +89,29 @@ export function Dashboard({ onSelectJob }: DashboardProps) {
             onChange={(e) => setMinScore(e.target.value === "" ? "" : Number(e.target.value))}
             className="w-16 px-2 py-1 rounded bg-zinc-800 border border-zinc-700 text-zinc-200 text-sm"
           />
+          <label className="text-sm text-zinc-400">Source:</label>
+          <select
+            value={source}
+            onChange={(e) => setSource(e.target.value as "" | "manual" | "rss" | "remoteok" | "linkedin")}
+            className="px-2 py-1 rounded bg-zinc-800 border border-zinc-700 text-zinc-200 text-sm"
+          >
+            <option value="">All</option>
+            <option value="manual">Manual</option>
+            <option value="rss">RSS</option>
+            <option value="remoteok">RemoteOK</option>
+            <option value="linkedin">LinkedIn</option>
+          </select>
+          <label className="text-sm text-zinc-400">Window:</label>
+          <select
+            value={days}
+            onChange={(e) => setDays(e.target.value === "" ? "" : Number(e.target.value))}
+            className="px-2 py-1 rounded bg-zinc-800 border border-zinc-700 text-zinc-200 text-sm"
+          >
+            <option value="">All time</option>
+            <option value={7}>7d</option>
+            <option value={30}>30d</option>
+            <option value={90}>90d</option>
+          </select>
           <button
             onClick={handleFetch}
             disabled={fetching}
