@@ -18,7 +18,7 @@ export function Dashboard({ onSelectJob }: DashboardProps) {
   const [pasteMode, setPasteMode] = useState(false);
   const [pasteText, setPasteText] = useState("");
   const [minScore, setMinScore] = useState<number | "">("");
-  const [source, setSource] = useState<"" | "manual" | "rss" | "remoteok" | "linkedin">("");
+  const [source, setSource] = useState<"" | "manual" | "rss" | "remoteok" | "linkedin" | "jobicy" | "greenhouse">("");
   const [days, setDays] = useState<number | "">(30);
   const [unscoredOnly, setUnscoredOnly] = useState(false);
   const [limit, setLimit] = useState<number | "">(50);
@@ -281,13 +281,15 @@ export function Dashboard({ onSelectJob }: DashboardProps) {
               <label className="block text-xs text-zinc-500 mb-1">Source</label>
               <select
                 value={source}
-                onChange={(e) => setSource(e.target.value as "" | "manual" | "rss" | "remoteok" | "linkedin")}
+                onChange={(e) => setSource(e.target.value as "" | "manual" | "rss" | "remoteok" | "linkedin" | "jobicy" | "greenhouse")}
                 className="w-full h-9 px-3 rounded-lg bg-zinc-900 border border-zinc-700 text-zinc-200 text-sm"
               >
                 <option value="">All</option>
                 <option value="manual">Manual</option>
                 <option value="rss">RSS</option>
                 <option value="remoteok">RemoteOK</option>
+                <option value="jobicy">Jobicy</option>
+                <option value="greenhouse">Greenhouse</option>
                 <option value="linkedin">LinkedIn</option>
               </select>
             </div>

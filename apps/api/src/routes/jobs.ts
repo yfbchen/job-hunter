@@ -4,6 +4,8 @@ import { scoreJob } from "../jobs/scorer.js";
 import { tailorArtifacts } from "../jobs/tailor.js";
 import { parseManualPaste } from "../jobs/fetchers/manual.js";
 import { fetchRemoteOkJobs } from "../jobs/fetchers/remoteok.js";
+import { fetchJobicyJobs } from "../jobs/fetchers/jobicy.js";
+import { fetchGreenhouseJobs } from "../jobs/fetchers/greenhouse.js";
 
 const router = Router();
 
@@ -27,9 +29,9 @@ router.get("/", async (req, res) => {
     return res.status(400).json({ error: "limit must be between 1 and 500" });
   }
 
-  const allowedSources = new Set(["manual", "rss", "remoteok", "linkedin"]);
+  const allowedSources = new Set(["manual", "rss", "remoteok", "linkedin", "jobicy", "greenhouse"]);
   if (source && !allowedSources.has(source)) {
-    return res.status(400).json({ error: "source must be one of: manual, rss, remoteok, linkedin" });
+    return res.status(400).json({ error: "source must be one of: manual, rss, remoteok, linkedin, jobicy, greenhouse" });
   }
 
   const createdAfter = days != null ? new Date(Date.now() - days * 24 * 60 * 60 * 1000) : undefined;
@@ -251,6 +253,54 @@ router.post("/fetch", async (req, res) => {
     }
   } catch (e) {
     console.error("RemoteOK fetch error:", e);
+  }
+
+  try {
+    const jobicyJobs = await fetchJobicyJobs({
+      tag: role || undefined,
+      geo: location?.toLowerCase() === "remote" ? undefined : location || undefined,
+      count: 50,
+    });
+    for (const j of jobicyJobs) {
+      const key = normalizeKey(j.title, j.company);
+      if (!seen.has(key)) {
+        seen.add(key);
+        await prisma.job.create({
+          data: {
+            title: j.title,
+            company: j.company,
+            description: j.description,
+            url: j.url,
+            source: "jobicy",
+          },
+        });
+        added.push(key);
+      }
+    }
+  } catch (e) {
+    console.error("Jobicy fetch error:", e);
+  }
+
+  try {
+    const greenhouseJobs = await fetchGreenhouseJobs();
+    for (const j of greenhouseJobs) {
+      const key = normalizeKey(j.title, j.company);
+      if (!seen.has(key)) {
+        seen.add(key);
+        await prisma.job.create({
+          data: {
+            title: j.title,
+            company: j.company,
+            description: j.description,
+            url: j.url,
+            source: "greenhouse",
+          },
+        });
+        added.push(key);
+      }
+    }
+  } catch (e) {
+    console.error("Greenhouse fetch error:", e);
   }
 
   res.json({ added: added.length, message: `Added ${added.length} new jobs` });

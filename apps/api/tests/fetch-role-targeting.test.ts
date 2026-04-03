@@ -14,9 +14,17 @@ const prismaMock = {
 vi.mock("../src/lib/prisma.js", () => ({ prisma: prismaMock }));
 
 const fetchRemoteOkJobsMock = vi.fn();
+const fetchJobicyJobsMock = vi.fn();
+const fetchGreenhouseJobsMock = vi.fn();
 
 vi.mock("../src/jobs/fetchers/remoteok.js", () => ({
   fetchRemoteOkJobs: fetchRemoteOkJobsMock,
+}));
+vi.mock("../src/jobs/fetchers/jobicy.js", () => ({
+  fetchJobicyJobs: fetchJobicyJobsMock,
+}));
+vi.mock("../src/jobs/fetchers/greenhouse.js", () => ({
+  fetchGreenhouseJobs: fetchGreenhouseJobsMock,
 }));
 
 describe("POST /jobs/fetch role targeting", () => {
@@ -25,6 +33,8 @@ describe("POST /jobs/fetch role targeting", () => {
     prismaMock.job.findMany.mockResolvedValue([]);
     prismaMock.job.create.mockResolvedValue({});
     fetchRemoteOkJobsMock.mockResolvedValue([]);
+    fetchJobicyJobsMock.mockResolvedValue([]);
+    fetchGreenhouseJobsMock.mockResolvedValue([]);
   });
 
   async function createApp() {

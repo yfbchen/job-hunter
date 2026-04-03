@@ -36,8 +36,9 @@ job-hunter/
 
 ### Job Sources (Hybrid)
 
-- **RSS** – Indeed and other feeds
-- **RemoteOK API** – Remote jobs
+- **RemoteOK API** – Remote jobs (free, no auth)
+- **Jobicy API** – Remote jobs (free, no auth; tag/geo filters)
+- **Greenhouse** – Tech company jobs via public Job Board API (40+ companies)
 - **Manual paste** – Paste job URL or description
 - **Post-MVP** – Optional lightweight LinkedIn scrape (use sparingly)
 
@@ -51,7 +52,7 @@ job-hunter/
 
 - Monorepo API/Web scaffold completed
 - Resume + cover artifact management (resume supports `.txt` and `.pdf`)
-- Job ingest via manual paste + RSS + RemoteOK
+- Job ingest via manual paste + RemoteOK + Jobicy + Greenhouse
 - Per-job scoring and bulk scoring for unscored jobs
 - Tailoring flow with editable outputs before copy
 - Dashboard triage filters (score/source/time window/unscored-only/top-N)
@@ -115,4 +116,5 @@ You can keep local development on SQLite and migrate to Supabase Postgres when y
 
 ## Implementation Plan (Todo)
 
-- [ ] **Greenhouse + Lever fetchers** – Add job fetchers for Greenhouse (`boards-api.greenhouse.io`) and Lever (`api.lever.co`) APIs. Each company has its own board token; maintain a curated list of target companies and fetch jobs from each. No API key needed for Greenhouse job listing; official APIs, no scraping/blocking risk.
+- [x] **Greenhouse fetcher** – Added. Fetches from 40+ tech companies (Stripe, Notion, Figma, etc.) via `boards-api.greenhouse.io`. No API key needed.
+- [ ] **Lever fetcher** – Same pattern as Greenhouse; add curated list of Lever board slugs and fetch from `api.lever.co`.
